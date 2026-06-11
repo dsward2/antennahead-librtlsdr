@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.5
 
 // Swift Package for AntennaHead macOS SDR app
 // https://github.com/dsward2/AntennaHead
