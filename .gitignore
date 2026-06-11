@@ -1,0 +1,6 @@
+# Build artifacts produced by build.sh
+build-arm64/
+build-stage/
+
+# macOS
+.DS_Store
