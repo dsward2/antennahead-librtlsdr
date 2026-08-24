@@ -155,7 +155,7 @@ echo "Framework layout:"
 find "$XCF_OUT/macos-arm64/$FW_NAME.framework" -maxdepth 3 -print
 
 # --- collect + fixup RTL command-line tools ---
-RTL_TOOLS=(rtl_fm rtl_sdr rtl_tcp rtl_test)
+RTL_TOOLS=(rtl_fm rtl_sdr rtl_tcp rtl_test rtl_eeprom)
 RTL_TOOLS_DIR="$REPO_ROOT/rtl-tools"
 rm -rf "$RTL_TOOLS_DIR"
 mkdir -p "$RTL_TOOLS_DIR"

@@ -4,3 +4,4 @@ build-stage/
 
 # macOS
 .DS_Store
+.swiftpm/
