@@ -58,7 +58,7 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" \
     -DINSTALL_UDEV_RULES=OFF \
     -DPROVIDE_PKGCONFIG_FILE=OFF
 
-cmake --build "$BUILD_DIR" --target rtlsdr_shared --parallel "$(sysctl -n hw.logicalcpu)"
+cmake --build "$BUILD_DIR" --parallel "$(sysctl -n hw.logicalcpu)"
 
 # librtlsdr's CMake produces librtlsdr.0.dylib (with versioned soname). Find it.
 DYLIB_SRC=$(find "$BUILD_DIR/src" -maxdepth 1 -name "librtlsdr.*.dylib" -type f | head -1)
@@ -153,6 +153,51 @@ otool -L "$XCF_OUT/macos-arm64/$FW_NAME.framework/Versions/A/$FW_NAME"
 echo
 echo "Framework layout:"
 find "$XCF_OUT/macos-arm64/$FW_NAME.framework" -maxdepth 3 -print
+
+# --- collect + fixup RTL command-line tools ---
+RTL_TOOLS=(rtl_fm rtl_sdr rtl_tcp rtl_test)
+RTL_TOOLS_DIR="$REPO_ROOT/rtl-tools"
+rm -rf "$RTL_TOOLS_DIR"
+mkdir -p "$RTL_TOOLS_DIR"
+
+for tool in "${RTL_TOOLS[@]}"; do
+    TOOL_SRC="$BUILD_DIR/src/$tool"
+    if [[ ! -f "$TOOL_SRC" ]]; then
+        echo "ERROR: expected executable not found: $TOOL_SRC" >&2
+        exit 1
+    fi
+    TOOL_DST="$RTL_TOOLS_DIR/$tool"
+    cp "$TOOL_SRC" "$TOOL_DST"
+    chmod u+w "$TOOL_DST"
+
+    # Rewrite librtlsdr dylib reference to framework form
+    RTLSDR_REF=$(otool -L "$TOOL_DST" | awk '/librtlsdr/ {print $1; exit}')
+    if [[ -n "$RTLSDR_REF" ]]; then
+        install_name_tool -change "$RTLSDR_REF" \
+            "@rpath/librtlsdr.framework/Versions/A/librtlsdr" "$TOOL_DST"
+    fi
+
+    # Rewrite libusb reference to @rpath form
+    LIBUSB_TOOL_REF=$(otool -L "$TOOL_DST" | awk '/libusb-1\.0/ {print $1; exit}')
+    if [[ -n "$LIBUSB_TOOL_REF" ]]; then
+        install_name_tool -change "$LIBUSB_TOOL_REF" "@rpath/libusb-1.0.0.dylib" "$TOOL_DST"
+    fi
+
+    # Add runtime rpath so the tool finds libs when installed in Contents/MacOS/
+    # (librtlsdr.framework and libusb-1.0.0.dylib both live in Contents/Frameworks/)
+    otool -l "$TOOL_DST" | grep -q "@executable_path/../Frameworks" || \
+        install_name_tool -add_rpath "@executable_path/../Frameworks" "$TOOL_DST"
+
+    codesign --force --sign - "$TOOL_DST"
+    echo "Collected tool: $TOOL_DST"
+done
+
+echo
+echo "=== RTL Tools ==="
+for tool in "${RTL_TOOLS[@]}"; do
+    echo "  $RTL_TOOLS_DIR/$tool"
+    otool -L "$RTL_TOOLS_DIR/$tool" | grep -E 'librtlsdr|libusb'
+done
 
 rm -rf "$BUILD_DIR" "$STAGE_DIR"
 echo
