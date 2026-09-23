@@ -30,7 +30,16 @@ FW_VERSION="1"
 DEPLOY_TARGET="12.0"
 
 # --- locate libusb ---
-if [[ -f /opt/local/lib/libusb-1.0.dylib && -d /opt/local/include/libusb-1.0 ]]; then
+# LIBUSB_LIB / LIBUSB_INC override the search. Link against the libusb the
+# apps actually bundle: the binaries record its compatibility version, and
+# dyld refuses to load them against an older one. AntennaHead ships libusb
+# with compatibility version 6, but a current MacPorts/Homebrew libusb
+# (1.0.27+) is 7, so to rebuild for it:
+#   LIBUSB_LIB=../AntennaHead/libusb-1.0.0.dylib \
+#   LIBUSB_INC=/opt/local/include/libusb-1.0 ./build.sh
+if [[ -n "${LIBUSB_LIB:-}" && -n "${LIBUSB_INC:-}" ]]; then
+    :
+elif [[ -f /opt/local/lib/libusb-1.0.dylib && -d /opt/local/include/libusb-1.0 ]]; then
     LIBUSB_INC="/opt/local/include/libusb-1.0"
     LIBUSB_LIB="/opt/local/lib/libusb-1.0.dylib"
 elif [[ -f /opt/homebrew/lib/libusb-1.0.dylib && -d /opt/homebrew/include/libusb-1.0 ]]; then
