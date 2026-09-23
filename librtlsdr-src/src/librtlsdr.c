@@ -3210,7 +3210,14 @@ int rtlsdr_open(rtlsdr_dev_t **out_dev, uint32_t index)
 		if (!libusb_detach_kernel_driver(dev->devh, 0)) {
 			fprintf(stderr, "Detached kernel driver\n");
 		} else {
-			fprintf(stderr, "Detaching kernel driver failed!");
+			/* On macOS libusb reports a device another process has
+			 * claimed (Gqrx, rtl_tcp, another rtl_fm) as "kernel driver
+			 * active", and detaching fails. r still holds libusb_open()'s
+			 * 0 here, so without setting it this returned success with the
+			 * device freed and *out_dev unset: callers carried on silently
+			 * with no device instead of reporting it busy. */
+			fprintf(stderr, "Detaching kernel driver failed!\n");
+			r = LIBUSB_ERROR_BUSY;
 			goto err;
 		}
 #else
