@@ -29,6 +29,18 @@ FW_VERSION_SHORT="0.9"
 FW_VERSION="1"
 DEPLOY_TARGET="12.0"
 
+# CMake records the build tree and the libusb directory as absolute LC_RPATH
+# entries. They mean nothing on another Mac, and an app that loads this binary
+# makes dyld try those paths first — under ~/Documents that can stall a launch
+# behind a macOS file-access prompt. Keep only the @-relative ones.
+strip_absolute_rpaths() {
+    local bin="$1" rpath
+    while IFS= read -r rpath; do
+        [[ -z "$rpath" || "$rpath" == @* ]] && continue
+        install_name_tool -delete_rpath "$rpath" "$bin"
+    done < <(otool -l "$bin" | awk '/cmd LC_RPATH/ {f=1} f && /^ +path / {sub(/^ +path /, ""); sub(/ \(offset [0-9]+\)$/, ""); print; f=0}')
+}
+
 # --- locate libusb ---
 # LIBUSB_LIB / LIBUSB_INC override the search. Link against the libusb the
 # apps actually bundle: the binaries record its compatibility version, and
@@ -144,6 +156,8 @@ if [[ -n "$LIBUSB_REF" ]]; then
     install_name_tool -change "$LIBUSB_REF" "@rpath/libusb-1.0.0.dylib" "$BIN"
 fi
 
+strip_absolute_rpaths "$BIN"
+
 # --- ad-hoc sign the binary, then the framework ---
 codesign --force --sign - "$BIN"
 codesign --force --sign - "$FW_STAGE"
@@ -196,6 +210,8 @@ for tool in "${RTL_TOOLS[@]}"; do
     # (librtlsdr.framework and libusb-1.0.0.dylib both live in Contents/Frameworks/)
     otool -l "$TOOL_DST" | grep -q "@executable_path/../Frameworks" || \
         install_name_tool -add_rpath "@executable_path/../Frameworks" "$TOOL_DST"
+
+    strip_absolute_rpaths "$TOOL_DST"
 
     codesign --force --sign - "$TOOL_DST"
     echo "Collected tool: $TOOL_DST"
